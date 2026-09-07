@@ -6,71 +6,55 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import type { NextRESTClient } from '../__helpers/shared/NextRESTClient.js'
 
-import { devUser } from '../credentials.js'
 import { initPayloadInt } from '../__helpers/shared/initPayloadInt.js'
-import { postsSlug } from './collections/Posts/index.js'
+import { devUser } from '../credentials.js'
 
 let payload: Payload
-let token: string
 let restClient: NextRESTClient
 
-const { email, password } = devUser
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-describe('_Community Tests', () => {
-  // --__--__--__--__--__--__--__--__--__
-  // Boilerplate test setup/teardown
-  // --__--__--__--__--__--__--__--__--__
+describe('function-based admin.hidden with a Lexical block relationship', () => {
   beforeAll(async () => {
     const initialized = await initPayloadInt(dirname)
     ;({ payload, restClient } = initialized)
 
-    const data = await restClient
-      .POST('/users/login', {
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      })
-      .then((res) => res.json())
-
-    token = data.token
+    await restClient.login({
+      slug: 'users',
+      credentials: {
+        email: devUser.email,
+        password: devUser.password,
+      },
+    })
   })
 
   afterAll(async () => {
     await payload.destroy()
   })
 
-  // --__--__--__--__--__--__--__--__--__
-  // You can run tests against the local API or the REST API
-  // use the tests below as a guide
-  // --__--__--__--__--__--__--__--__--__
+  it('allows a readable existing relationship to remain selected when saving', async () => {
+    const hiddenItemsResponse = await restClient.GET('/hidden-items')
+    expect(hiddenItemsResponse.status).toBe(200)
 
-  it('local API example', async () => {
-    const newPost = await payload.create({
-      collection: postsSlug,
-      data: {
-        title: 'LOCAL API EXAMPLE',
+    const postsResponse = await restClient.GET('/reproduction-posts', {
+      query: {
+        depth: 0,
+        limit: 1,
       },
-      context: {},
     })
+    const { docs } = await postsResponse.json()
+    const post = docs[0]
 
-    expect(newPost.title).toEqual('LOCAL API EXAMPLE')
-  })
+    const updateResponse = await restClient.PATCH(`/reproduction-posts/${post.id}`, {
+      body: JSON.stringify({
+        title: post.title,
+        content: post.content,
+      }),
+    })
+    const updateResult = await updateResponse.json()
 
-  it('rest API example', async () => {
-    const data = await restClient
-      .POST(`/${postsSlug}`, {
-        body: JSON.stringify({
-          title: 'REST API EXAMPLE',
-        }),
-        headers: {
-          Authorization: `JWT ${token}`,
-        },
-      })
-      .then((res) => res.json())
-
-    expect(data.doc.title).toEqual('REST API EXAMPLE')
+    expect(updateResponse.status).toBe(200)
+    expect(updateResult).toHaveProperty('doc')
   })
 })
