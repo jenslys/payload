@@ -7,13 +7,22 @@ export const postsSlug = 'posts'
 export const PostsCollection: CollectionConfig = {
   slug: postsSlug,
   admin: {
-    useAsTitle: 'title',
+    defaultColumns: ['title', 'computedValue'],
     enableListViewSelectAPI: true,
+    useAsTitle: 'title',
   },
   fields: [
     {
       name: 'title',
       type: 'text',
+    },
+    {
+      name: 'computedValue',
+      type: 'text',
+      hooks: {
+        afterRead: [() => 'computed'],
+      },
+      virtual: true,
     },
     {
       name: 'content',

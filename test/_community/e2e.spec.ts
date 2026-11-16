@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test'
 
 import { expect, test } from '@playwright/test'
 import * as path from 'path'
@@ -12,26 +12,55 @@ import { TEST_TIMEOUT_LONG } from '../playwright.config.js'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-test.describe('Community', () => {
+test.describe('Stale list sort after a field becomes virtual', () => {
+  let context: BrowserContext | undefined
   let page: Page
   let url: AdminUrlUtil
 
   test.beforeAll(async ({ browser }, testInfo) => {
     testInfo.setTimeout(TEST_TIMEOUT_LONG)
 
-    const { payload, serverURL } = await initPayloadE2ENoConfig({ dirname })
+    const { serverURL } = await initPayloadE2ENoConfig({ dirname })
     url = new AdminUrlUtil(serverURL, 'posts')
 
-    const context = await browser.newContext()
+    context = await browser.newContext()
     page = await context.newPage()
     initPageConsoleErrorCatch(page)
     await ensureCompilationIsDone({ page, serverURL })
   })
 
-  test('example test', async () => {
+  test.beforeEach(async () => {
+    const response = await page.request.post(
+      `${url.serverURL}/api/payload-preferences/collection-posts`,
+      {
+        data: { value: { sort: '-computedValue' } },
+      },
+    )
+
+    expect(response.status()).toBe(200)
+  })
+
+  test.afterEach(async () => {
+    const response = await page.request.delete(
+      `${url.serverURL}/api/payload-preferences/collection-posts`,
+    )
+
+    expect(response.status()).toBe(200)
+  })
+
+  test.afterAll(async () => {
+    await context?.close()
+  })
+
+  test('should recover when an explicit valid sort replaces the stale preference', async () => {
+    await page.goto(`${url.list}?sort=title`)
+
+    await expect(page.getByRole('link', { name: 'example post', exact: true })).toBeVisible()
+  })
+
+  test('should keep the collection usable when the saved sort references a now-virtual field', async () => {
     await page.goto(url.list)
 
-    const textCell = page.locator('.row-1 .cell-title')
-    await expect(textCell).toHaveText('example post')
+    await expect(page.getByRole('link', { name: 'example post', exact: true })).toBeVisible()
   })
 })
